@@ -314,6 +314,30 @@ var argsForInput = {
         }
       };
     },
+    fetch: function() {
+      return {
+        after: {
+          required: false,
+          key: 'after',
+          value: undefined
+        },
+        before: {
+          required: false,
+          key: 'before',
+          value: undefined
+        },
+        page: {
+          required: false,
+          key: 'page',
+          value: undefined
+        },
+        pageSize: {
+          required: false,
+          key: 'page_size',
+          value: undefined
+        }
+      };
+    },
     products: {
       create: function() {
         return {
@@ -2185,6 +2209,64 @@ var fetchConsignment  = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, fetchConsignment, retryCounter);
 };
 
+var fetchConsignments  = function(args, connectionInfo, retryCounter) {
+  log.debug('inside fetchConsignments()');
+  if (!retryCounter) {
+    retryCounter = 0;
+  } else {
+    log.debug('retry # ' + retryCounter);
+  }
+
+  var path = 'api/2.0/consignments';
+  var vendUrl = 'https://' + connectionInfo.domainPrefix + '.vendhq.com' + path;
+  var authString = 'Bearer ' + connectionInfo.accessToken;
+  log.debug('GET ' + vendUrl);
+  log.silly('Authorization: ' + authString); // TODO: sensitive data ... do not log?
+
+  var options = {
+    url: vendUrl,
+    headers: {
+      'Authorization': authString,
+      'Accept': 'application/json'
+    },
+    qs: {
+      after: args.after.value,
+      before: args.before.value,
+      page_size: args.pageSize.value
+    }
+  };
+  if (args.page.value) {
+    log.debug('Requesting consignment page ' + args.page.value);
+  }
+
+  return sendRequest(options, args, connectionInfo, fetchSuppliers, retryCounter);
+};
+
+var fetchAllConsignment  = function(connectionInfo, retryCounter) {
+  var args = argsForInput.users.fetch();
+  args.page.value = 1;
+  args.pageSize.value = 200;
+
+  // set a default function if none is provided
+  if (!processPagedResults) {
+    processPagedResults = function processPagedResults(pagedData, previousData){
+      log.debug('fetchAllConsignment - default processPagedResults()');
+      if (previousData && previousData.length>0) {
+        if (pagedData.consignments && pagedData.consignments.length>0) {
+          log.debug('previousData: ', previousData.length);
+          pagedData.consignments = pagedData.consignments.concat(previousData);
+          log.debug('combined: ', pagedData.consignments.length);
+        }
+        else {
+          pagedData.consignments = previousData;
+        }
+      }
+      return Promise.resolve(pagedData.consignments);
+    };
+  }
+  return processPagesRecursively(args, connectionInfo, fetchConsignments, processPagedResults);
+};
+
 var createConsignmentProduct = function(args, connectionInfo, retryCounter) {
   log.debug('inside createConsignmentProduct()');
 
@@ -2875,6 +2957,8 @@ module.exports = function(dependencies) {
     },
     consignments: {
       fetchById: fetchConsignment,
+      fetch: fetchConsignments,
+      fetchAll: fetchAllConsignment,
       stockOrders: {
         create: createStockOrder,
         markAsSent: markStockOrderAsSent,
