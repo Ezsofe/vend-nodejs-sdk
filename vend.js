@@ -419,16 +419,6 @@ var argsForInput = {
     stockOrders: {
       create: function() {
         return {
-          type: {
-            required: true,
-            key: 'type',
-            value: 'SUPPLIER'
-          },
-          status: {
-            required: true,
-            key: 'status',
-            value: 'OPEN'
-          },
           name: {
             required: true,
             key: 'name',
@@ -471,6 +461,69 @@ var argsForInput = {
         };
       },
       markAsReceived: function() {
+        return {
+          apiId: {
+            required: true,
+            //id: undefined, // does not travel as a key/value property in the JSON payload
+            value: undefined
+          },
+          body: {
+            required: true,
+            //id: undefined, // does not travel as a key/value property in the JSON payload
+            value: undefined
+          }
+        };
+      },
+      remove: function() {
+        return {
+          apiId: {
+            required: true,
+            //id: undefined, // does not travel as a key/value property in the JSON payload
+            value: undefined
+          }
+        };
+      }
+    },
+    stocktake: {
+      create: function() {
+        return {
+          name: {
+            required: true,
+            key: 'name',
+            value: undefined
+          },
+          outletId: {
+            required: true,
+            key: 'outlet_id',
+            value: undefined
+          },
+          dueAt: {
+            required: false, // can be null, ok by Vend
+            key: 'due_at',
+            value: undefined
+          },
+          transactionId: {
+            required: false, // can be null, ok by Vend
+            key: 'accounts_transaction_id',
+            value: undefined
+          }
+        };
+      },
+      markAsInProgress: function() {
+        return {
+          apiId: {
+            required: true,
+            //id: undefined, // does not travel as a key/value property in the JSON payload
+            value: undefined
+          },
+          body: {
+            required: true,
+            //id: undefined, // does not travel as a key/value property in the JSON payload
+            value: undefined
+          }
+        };
+      },
+      markAsComplete: function() {
         return {
           apiId: {
             required: true,
@@ -2334,8 +2387,8 @@ var createStockOrder = function(args, connectionInfo, retryCounter) {
   log.silly('Authorization: ' + authString); // TODO: sensitive data ... do not log?
 
   var body = {
-    'type': args.type.value,
-    'status': args.status.value,
+    'type': "SUPPLIER",
+    'status': "OPEN",
     'name': args.name.value,
     'date': moment().format('YYYY-MM-DD HH:mm:ss'), //'2010-01-01 14:01:01',
     'due_at': args.dueAt.value,
@@ -2743,6 +2796,154 @@ var updateRegisterSale = function(body, connectionInfo, retryCounter) {
   return sendRequest(options, body, connectionInfo, updateRegisterSale, retryCounter);
 };
 
+var createStocktake = function(args, connectionInfo, retryCounter) {
+  log.debug('inside createStocktake()');
+
+  if ( !(args && argsAreValid(args)) ) {
+    return Promise.reject('missing required arguments for createStocktake()');
+  }
+
+  if (!retryCounter) {
+    retryCounter = 0;
+  } else {
+    log.debug('retry # ' + retryCounter);
+  }
+
+  var path = '/api/consignment';
+  var vendUrl = 'https://' + connectionInfo.domainPrefix + '.vendhq.com' + path;
+  var authString = 'Bearer ' + connectionInfo.accessToken;
+  log.silly('Authorization: ' + authString); // TODO: sensitive data ... do not log?
+
+  var body = {
+    'type': "STOCKTAKE",
+    'status': "STOCKTAKE_SCHEDULED",
+    'name': args.name.value,
+    'date': moment().format('YYYY-MM-DD HH:mm:ss'), //'2010-01-01 14:01:01',
+    'due_at': args.dueAt.value,
+    'outlet_id': args.outletId.value,
+    'accounts_transaction_id': args.transactionId.value
+  };
+  var options = {
+    method: 'POST',
+    url: vendUrl,
+    headers: {
+      'Authorization': authString,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    },
+    json: body
+  };
+  log.debug(options.method + ' ' + options.url);
+
+  return sendRequest(options, args, connectionInfo, createStocktake, retryCounter);
+};
+
+var markStocktakeAsInProgress = function(args, connectionInfo, retryCounter) {
+  log.debug('inside markStocktakeAsInProgress()', args);
+
+  if ( !(args && argsAreValid(args)) ) {
+    return Promise.reject('missing required arguments for markStocktakeAsInProgress()');
+  }
+
+  if (!retryCounter) {
+    retryCounter = 0;
+  } else {
+    log.debug('retry # ' + retryCounter);
+  }
+
+  var path = '/api/consignment/' + args.apiId.value;
+  var vendUrl = 'https://' + connectionInfo.domainPrefix + '.vendhq.com' + path;
+  var authString = 'Bearer ' + connectionInfo.accessToken;
+  log.silly('Authorization: ' + authString); // TODO: sensitive data ... do not log?
+  var body = args.body.value;
+  body.status = 'STOCKTAKE_IN_PROGRESS';
+
+  var options = {
+    method: 'PUT',
+    url: vendUrl,
+    headers: {
+      'Authorization': authString,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    },
+    json: body
+  };
+  log.debug(options.method, options.url);
+  log.debug('body:', options.json);
+
+  return sendRequest(options, args, connectionInfo, markStocktakeAsInProgress, retryCounter);
+};
+
+var markStocktakeAsComplete = function(args, connectionInfo, retryCounter) {
+  log.debug('inside markStocktakeAsComplete()', args);
+
+  if ( !(args && argsAreValid(args)) ) {
+    return Promise.reject('missing required arguments for markStocktakeAsComplete()');
+  }
+
+  if (!retryCounter) {
+    retryCounter = 0;
+  } else {
+    log.debug('retry # ' + retryCounter);
+  }
+
+  var path = '/api/consignment/' + args.apiId.value;
+  var vendUrl = 'https://' + connectionInfo.domainPrefix + '.vendhq.com' + path;
+  var authString = 'Bearer ' + connectionInfo.accessToken;
+  log.silly('Authorization: ' + authString); // TODO: sensitive data ... do not log?
+  var body = args.body.value;
+  body.status = 'SENT';
+
+  var options = {
+    method: 'PUT',
+    url: vendUrl,
+    headers: {
+      'Authorization': authString,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    },
+    json: body
+  };
+  log.debug(options.method, options.url);
+  log.debug('body:', options.json);
+
+  return sendRequest(options, args, connectionInfo, markStocktakeAsComplete, retryCounter);
+};
+
+var deleteStocktake = function(args, connectionInfo, retryCounter) {
+  log.debug('inside deleteStocktake()');
+
+  if ( !(args && argsAreValid(args)) ) {
+    return Promise.reject('missing required arguments for deleteStocktake()');
+  }
+
+  if (!retryCounter) {
+    retryCounter = 0;
+  } else {
+    log.debug('retry # ' + retryCounter);
+  }
+
+  log.debug(args.apiId.value);
+  var path = '/api/consignment/' + args.apiId.value;
+  log.debug(path);
+  var vendUrl = 'https://' + connectionInfo.domainPrefix + '.vendhq.com' + path;
+  var authString = 'Bearer ' + connectionInfo.accessToken;
+  log.silly('Authorization: ' + authString); // TODO: sensitive data ... do not log?
+
+  var options = {
+    method: 'DELETE',
+    url: vendUrl,
+    headers: {
+      'Authorization': authString,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    }
+  };
+  log.debug(options.method + ' ' + options.url);
+
+  return sendRequest(options, args, connectionInfo, deleteStocktake, retryCounter);
+};
+
 var getInitialAccessToken = function(tokenService, clientId, clientSecret, redirectUri, code, domainPrefix, state) {
   // TODO: tweak winston logs to prefix method signature (like breadcrumbs) when logging?
   log.debug('getInitialAccessToken - token_service: ' + tokenService);
@@ -2967,6 +3168,12 @@ module.exports = function(dependencies) {
         fetchAll: fetchAllStockOrdersForSuppliers,
         resolveMissingSuppliers: resolveMissingSuppliers,
         remove: deleteStockOrder
+      },
+      stocktake: {
+        create: createStocktake,
+        markAsInProgress: markStocktakeAsInProgress,
+        markAsComplete: markStocktakeAsComplete,
+        remove: deleteStocktake
       },
       products: {
         create: createConsignmentProduct,
