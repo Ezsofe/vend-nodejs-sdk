@@ -28,22 +28,22 @@ function ConnectError(e) { // TODO: maybe leverage https://github.com/petkaanton
 }
 /* jshint ignore:end */
 
-var successHandler = function(response) {
-  if(_.isArray(response)) {
+var successHandler = function (response) {
+  if (_.isArray(response)) {
     log.debug('response is an array');
   }
-  else if(_.isObject(response)) {
+  else if (_.isObject(response)) {
     log.debug('response is an object');
     return Promise.resolve(response);
   }
-  else if(_.isString(response)) {
+  else if (_.isString(response)) {
     log.debug('response is a string');
-    try{
+    try {
       var responseObject = JSON.parse(response);
       //log.silly(responseObject);
       return Promise.resolve(responseObject);
     }
-    catch(error){
+    catch (error) {
       log.error('successHandler', 'caught an error: ', error);
       throw error;
     }
@@ -53,16 +53,16 @@ var successHandler = function(response) {
   }
 };
 
-var retryWhenConnectionFails = function(args, connectionInfo, callback, retryCounter) {
-  if(retryCounter<3) {
-    var retryAfter = (retryCounter+1)*1000; // will wait for 1, 2, 3 seconds successively
+var retryWhenConnectionFails = function (args, connectionInfo, callback, retryCounter) {
+  if (retryCounter < 3) {
+    var retryAfter = (retryCounter + 1) * 1000; // will wait for 1, 2, 3 seconds successively
     log.debug('retryWhenConnectionFails', 'retry after: ' + retryAfter + ' ms');
 
     return Promise.delay(retryAfter)
-        .then(function() {
-          log.debug('retryWhenConnectionFails', retryAfter + ' ms have passed...');
-          return callback(args, connectionInfo, ++retryCounter);
-        });
+      .then(function () {
+        log.debug('retryWhenConnectionFails', retryAfter + ' ms have passed...');
+        return callback(args, connectionInfo, ++retryCounter);
+      });
   }
   else {
     return Promise.reject('failed to connect, even after multiple retries');
@@ -79,28 +79,27 @@ var retryWhenConnectionFails = function(args, connectionInfo, callback, retryCou
  * @param callback
  * @returns {*|Parse.Promise}
  */
-var retryWhenRateLimited = function(bodyObject, args, connectionInfo, callback, retryCounter) {
-  if(retryCounter<3) {
-    var retryAfter = 5*60*1000; // by default Vend will never block for more than 5 minutes
+var retryWhenRateLimited = function (bodyObject, args, connectionInfo, callback, retryCounter) {
+  if (retryCounter < 3) {
+    var retryAfter = 5 * 60 * 1000; // by default Vend will never block for more than 5 minutes
     retryAfter = Math.max(moment(bodyObject['retry-after']).diff(moment()), 0);
     //retryAfter = 5000; // for sanity testing counter increments quickly
     log.debug('retry after: ' + retryAfter + ' ms');
 
     return Promise.delay(retryAfter)
-      .then(function() {
+      .then(function () {
         log.debug(retryAfter + ' ms have passed...');
         return callback(args, connectionInfo, ++retryCounter);
       });
   }
 };
 
-var retryWhenAuthNFails = function(args, connectionInfo, callback, retryCounter) {
-  if(retryCounter<3) {
-    if ( !(connectionInfo.vendTokenService &&
-           connectionInfo.vendClientId &&
-           connectionInfo.vendClientSecret &&
-           connectionInfo.refreshToken) )
-    {
+var retryWhenAuthNFails = function (args, connectionInfo, callback, retryCounter) {
+  if (retryCounter < 3) {
+    if (!(connectionInfo.vendTokenService &&
+      connectionInfo.vendClientId &&
+      connectionInfo.vendClientSecret &&
+      connectionInfo.refreshToken)) {
       return Promise.reject('missing required arguments for retryWhenAuthNFails()');
       // throw e; // TODO: throw unknown errors but reject well known errors?
     }
@@ -113,13 +112,13 @@ var retryWhenAuthNFails = function(args, connectionInfo, callback, retryCounter)
       connectionInfo.refreshToken,
       connectionInfo.domainPrefix
     )
-      .then(function(oauthInfo) {/*jshint camelcase: false */
+      .then(function (oauthInfo) {/*jshint camelcase: false */
         log.debug('update connectionInfo w/ new token before using it again', oauthInfo);
         var waitFor = Promise.resolve();
         if (oauthInfo.access_token) {
           log.debug('received new access_token: ' + oauthInfo.access_token);
           connectionInfo.accessToken = oauthInfo.access_token;
-          if(_.isFunction(connectionInfo.updateAccessToken)) {
+          if (_.isFunction(connectionInfo.updateAccessToken)) {
             waitFor = connectionInfo.updateAccessToken(connectionInfo);
           }
         }
@@ -129,15 +128,15 @@ var retryWhenAuthNFails = function(args, connectionInfo, callback, retryCounter)
         }
 
         log.debug('retrying with new accessToken: ' + connectionInfo.accessToken);
-        return waitFor.then(function(){
+        return waitFor.then(function () {
           return callback(args, connectionInfo, ++retryCounter);
         });
       });
   }
 };
 
-var sendRequest = function(options, args, connectionInfo, callback, retryCounter) {
-  if ( !(connectionInfo && connectionInfo.accessToken && connectionInfo.domainPrefix) ) {
+var sendRequest = function (options, args, connectionInfo, callback, retryCounter) {
+  if (!(connectionInfo && connectionInfo.accessToken && connectionInfo.domainPrefix)) {
     return Promise.reject('missing required arguments for sendRequest()');
   }
   if (options.headers) {
@@ -145,15 +144,15 @@ var sendRequest = function(options, args, connectionInfo, callback, retryCounter
   }
   return request(options)
     .then(successHandler)
-    .catch(ConnectError, function(e) {// jshint ignore:line
+    .catch(ConnectError, function (e) {// jshint ignore:line
       log.error('A ConnectError happened: \n' + e);
       return retryWhenConnectionFails(args, connectionInfo, callback, retryCounter);
       // TODO: how to prevent a throw or rejection from also stepping thru the other catch-blocks?
     })
-    .catch(RateLimitingError, function(e) {// jshint ignore:line
+    .catch(RateLimitingError, function (e) {// jshint ignore:line
       log.error('A RateLimitingError error like "429 Too Many Requests" happened: \n'
-          + 'statusCode: ' + e.statusCode + '\n'
-          + 'body: ' + e.response.body + '\n'
+        + 'statusCode: ' + e.statusCode + '\n'
+        + 'body: ' + e.response.body + '\n'
         //+ JSON.stringify(e.response.headers,null,2)
       );
 
@@ -172,23 +171,23 @@ var sendRequest = function(options, args, connectionInfo, callback, retryCounter
       return retryWhenRateLimited(bodyObject, args, connectionInfo, callback, retryCounter);
       // TODO: how should a catch-block respond if there is a problem within the retry?
     })
-    .catch(AuthNError, function(e) {// jshint ignore:line
+    .catch(AuthNError, function (e) {// jshint ignore:line
       log.error('An AuthNError happened: \n'
-          + 'statusCode: ' + e.statusCode + '\n'
-          + 'body: ' + e.response.body + '\n'
+        + 'statusCode: ' + e.statusCode + '\n'
+        + 'body: ' + e.response.body + '\n'
         /*+ JSON.stringify(e.response.headers,null,2)
          + JSON.stringify(e,null,2)*/
       );
       return retryWhenAuthNFails(args, connectionInfo, callback, retryCounter);
       // TODO: how to prevent a throw or rejection from also stepping thru the other catch-blocks?
     })
-    .catch(ClientError, function(e) {// jshint ignore:line
+    .catch(ClientError, function (e) {// jshint ignore:line
       var message = e.response.body;
-      if(_.isObject(message)) {
-        message = JSON.stringify(message,null,2);
+      if (_.isObject(message)) {
+        message = JSON.stringify(message, null, 2);
       }
       log.error('A ClientError happened: \n'
-          + e.statusCode + ' ' + message + '\n'
+        + e.statusCode + ' ' + message + '\n'
         /*+ JSON.stringify(e.response.headers,null,2)
          + JSON.stringify(e,null,2)*/
       );
@@ -197,7 +196,7 @@ var sendRequest = function(options, args, connectionInfo, callback, retryCounter
 
       return Promise.reject(e.statusCode + ' ' + e.response.body); // TODO: throw unknown errors but reject well known errors?
     })
-    .catch(function(e) {
+    .catch(function (e) {
       log.error('vend.js - sendRequest - An unexpected error occurred: ', e);
       throw e; // TODO: throw unknown errors but reject well known errors?
     });
@@ -211,15 +210,15 @@ var sendRequest = function(options, args, connectionInfo, callback, retryCounter
  * @param domain_prefix
  * @returns {*|XML|string|void}
  */
-var getTokenUrl = function(tokenService, domainPrefix) {
+var getTokenUrl = function (tokenService, domainPrefix) {
   var tokenUrl = tokenService.replace(/\{DOMAIN_PREFIX\}/, domainPrefix);
-  log.debug('token Url: '+ tokenUrl);
+  log.debug('token Url: ' + tokenUrl);
   return tokenUrl;
 };
 
-function processPagesRecursively(args, connectionInfo, fetchSinglePage, processPagedResults, previousProcessedResults){
+function processPagesRecursively(args, connectionInfo, fetchSinglePage, processPagedResults, previousProcessedResults) {
   return fetchSinglePage(args, connectionInfo)
-    .then(function(result){/*jshint camelcase: false */
+    .then(function (result) {/*jshint camelcase: false */
 
       // HACK - until Vend responses become consistent
       if (result && result.results && !result.pagination) {
@@ -231,25 +230,25 @@ function processPagesRecursively(args, connectionInfo, fetchSinglePage, processP
         }; // NOTE: if the first page has all the results, this block won't run then either
       }
 
-      if(result.pagination && result.pagination.pages > args.page.value) {
+      if (result.pagination && result.pagination.pages > args.page.value) {
         log.info('# of entries returned: ' + result.pagination.results);
         log.info('Page # ' + args.page.value + ' of ' + result.pagination.pages);
         return processPagedResults(result, previousProcessedResults)
-          .then(function(newlyProcessedResults){
-            args.page.value = args.page.value+1;
+          .then(function (newlyProcessedResults) {
+            args.page.value = args.page.value + 1;
             return processPagesRecursively(args, connectionInfo, fetchSinglePage, processPagedResults, newlyProcessedResults);
           });
       }
-      else if (result && result.version && result.data && result.data.length>0) {
+      else if (result && result.version && result.data && result.data.length > 0) {
         log.info('# of entries returned: ' + result.data.length);
-        log.info('version min: '+ result.version.min + ' max: ' + result.version.max);
+        log.info('version min: ' + result.version.min + ' max: ' + result.version.max);
         if (args.pageSize.value) {
           log.info('Page # ' + args.page.value); // page has no operational role here, just useful for readable logs
         }
         return processPagedResults(result, previousProcessedResults)
-          .then(function(newlyProcessedResults){
+          .then(function (newlyProcessedResults) {
             args.after.value = result.version.max; // work on whatever is left after the max version from previous call
-            args.page.value = args.page.value+1; // page has no operational role here, just useful for readable logs
+            args.page.value = args.page.value + 1; // page has no operational role here, just useful for readable logs
             return processPagesRecursively(args, connectionInfo, fetchSinglePage, processPagedResults, newlyProcessedResults);
           });
       }
@@ -260,15 +259,15 @@ function processPagesRecursively(args, connectionInfo, fetchSinglePage, processP
     });
 }
 
-var processPromisesSerially = function(aArray, aArrayIndex, args, mergeStrategy, setupNext, executeNext, aPreviousResults){
+var processPromisesSerially = function (aArray, aArrayIndex, args, mergeStrategy, setupNext, executeNext, aPreviousResults) {
   if (aArrayIndex < aArray.length) {
     log.debug('processPromisesSerially for aArrayIndex # ' + aArrayIndex);
     return executeNext(args)
-      .then(function(executedResults){
+      .then(function (executedResults) {
         //log.silly('executedResults ', executedResults);
         //log.silly('executedResults.length ', executedResults.length); // .length may not be valid everytime
         return mergeStrategy(executedResults, aPreviousResults, args)
-          .then(function(mergedResults){
+          .then(function (mergedResults) {
             log.debug('mergedResults.length ', mergedResults.length);
             //log.silly('before: ', args);
             args = setupNext(args);
@@ -286,16 +285,16 @@ var processPromisesSerially = function(aArray, aArrayIndex, args, mergeStrategy,
       });
   }
   else {
-    if(aPreviousResults) {
-    log.debug('aPreviousResults.length ', aPreviousResults.length);
+    if (aPreviousResults) {
+      log.debug('aPreviousResults.length ', aPreviousResults.length);
     }
     log.debug('processPromisesSerially() finished');
     return Promise.resolve(aPreviousResults);
   }
 };
 
-var argsAreValid = function(args){
-  var arrayOfRequiredArgs = _.filter(args, function(object/*, key*/){
+var argsAreValid = function (args) {
+  var arrayOfRequiredArgs = _.filter(args, function (object/*, key*/) {
     return object.required;
   });
   var arrayOfRequiredValues = _.pluck(arrayOfRequiredArgs, 'value');
@@ -306,7 +305,7 @@ var argsAreValid = function(args){
 // the SDK will pull out the non-empty values and execute the request
 var argsForInput = {
   consignments: {
-    fetchById: function() {
+    fetchById: function () {
       return {
         apiId: {
           required: true,
@@ -314,7 +313,7 @@ var argsForInput = {
         }
       };
     },
-    fetch: function() {
+    fetch: function () {
       return {
         after: {
           required: false,
@@ -339,7 +338,7 @@ var argsForInput = {
       };
     },
     products: {
-      create: function() {
+      create: function () {
         return {
           consignmentId: {
             required: true,
@@ -373,7 +372,7 @@ var argsForInput = {
           }
         };
       },
-      update: function() {
+      update: function () {
         return {
           apiId: {
             required: true,
@@ -387,7 +386,7 @@ var argsForInput = {
           }
         };
       },
-      remove: function() {
+      remove: function () {
         return {
           apiId: {
             required: true,
@@ -396,7 +395,7 @@ var argsForInput = {
           }
         };
       },
-      fetchAllByConsignment: function() {
+      fetchAllByConsignment: function () {
         return {
           consignmentId: {
             required: true,
@@ -417,7 +416,7 @@ var argsForInput = {
       }
     },
     stockOrders: {
-      create: function() {
+      create: function () {
         return {
           name: {
             required: true,
@@ -446,7 +445,7 @@ var argsForInput = {
           }
         };
       },
-      markAsSent: function() {
+      markAsSent: function () {
         return {
           apiId: {
             required: true,
@@ -460,7 +459,7 @@ var argsForInput = {
           }
         };
       },
-      markAsReceived: function() {
+      markAsReceived: function () {
         return {
           apiId: {
             required: true,
@@ -474,7 +473,7 @@ var argsForInput = {
           }
         };
       },
-      remove: function() {
+      remove: function () {
         return {
           apiId: {
             required: true,
@@ -485,7 +484,7 @@ var argsForInput = {
       }
     },
     stocktake: {
-      create: function() {
+      create: function () {
         return {
           name: {
             required: true,
@@ -509,7 +508,7 @@ var argsForInput = {
           }
         };
       },
-      markAsInProgress: function() {
+      markAsInProgress: function () {
         return {
           apiId: {
             required: true,
@@ -523,7 +522,7 @@ var argsForInput = {
           }
         };
       },
-      markAsComplete: function() {
+      markAsComplete: function () {
         return {
           apiId: {
             required: true,
@@ -537,7 +536,7 @@ var argsForInput = {
           }
         };
       },
-      remove: function() {
+      remove: function () {
         return {
           apiId: {
             required: true,
@@ -549,7 +548,7 @@ var argsForInput = {
     }
   },
   products: {
-    fetchById: function() {
+    fetchById: function () {
       return {
         apiId: {
           required: true,
@@ -557,7 +556,7 @@ var argsForInput = {
         }
       };
     },
-    update: function() {
+    update: function () {
       return {
         body: {
           required: true,
@@ -565,7 +564,7 @@ var argsForInput = {
         }
       };
     },
-    create: function() {
+    create: function () {
       return {
         body: {
           required: true,
@@ -573,7 +572,7 @@ var argsForInput = {
         }
       };
     },
-    uploadImage: function() {
+    uploadImage: function () {
       return {
         apiId: {
           required: true,
@@ -585,7 +584,7 @@ var argsForInput = {
         }
       };
     },
-    fetch: function() {
+    fetch: function () {
       return {
         orderBy: {
           required: false,
@@ -607,7 +606,7 @@ var argsForInput = {
           required: false,
           key: 'active',
           value: undefined // 0 (or no value) : returns only inactive products
-                           // 1 (or any other value) : returns only active products
+          // 1 (or any other value) : returns only active products
           // TODO: can we embed a transformation here?
           //       API consumer will set true or false or 0 or 1 as the value
           //       but SDK will get the 0 or 1 value based on a transformation
@@ -626,7 +625,7 @@ var argsForInput = {
     }
   },
   customers: {
-    fetch: function() {
+    fetch: function () {
       return {
         apiId: {
           required: false,
@@ -653,7 +652,7 @@ var argsForInput = {
     }
   },
   registers: {
-    fetchById: function() {
+    fetchById: function () {
       return {
         apiId: {
           required: true,
@@ -661,7 +660,7 @@ var argsForInput = {
         }
       };
     },
-    fetch: function() {
+    fetch: function () {
       return {
         page: {
           required: false,
@@ -677,7 +676,7 @@ var argsForInput = {
     }
   },
   outlets: {
-    fetch: function() {
+    fetch: function () {
       return {
         after: {
           required: false,
@@ -696,7 +695,7 @@ var argsForInput = {
         }
       };
     },
-    fetchById: function() {
+    fetchById: function () {
       return {
         apiId: {
           required: true,
@@ -706,7 +705,7 @@ var argsForInput = {
     }
   },
   paymentTypes: {
-    fetch: function() {
+    fetch: function () {
       return {
         page: {
           required: false,
@@ -722,7 +721,7 @@ var argsForInput = {
     }
   },
   productTypes: {
-    fetch: function() {
+    fetch: function () {
       return {
         after: {
           required: false,
@@ -751,7 +750,7 @@ var argsForInput = {
     }
   },
   taxes: {
-    fetch: function() {
+    fetch: function () {
       return {
         page: {
           required: false,
@@ -775,7 +774,7 @@ var argsForInput = {
     }
   },
   brands: {
-    fetch: function() {
+    fetch: function () {
       return {
         after: {
           required: false,
@@ -804,7 +803,7 @@ var argsForInput = {
     }
   },
   tags: {
-    fetch: function() {
+    fetch: function () {
       return {
         after: {
           required: false,
@@ -833,7 +832,7 @@ var argsForInput = {
     }
   },
   sales: {
-    fetchById: function() {
+    fetchById: function () {
       return {
         apiId: {
           required: true,
@@ -841,7 +840,7 @@ var argsForInput = {
         }
       };
     },
-    fetch: function() {
+    fetch: function () {
       return {
         after: {
           required: false,
@@ -860,26 +859,26 @@ var argsForInput = {
         }
       };
     },
-    fetchAll: function() {
+    fetchAll: function () {
       return {
         since: {
           deprecated: true,
           notes: 'Deprecated since version 1.0: ' +
-            'If you need to be notified of register sales, ' +
-            'and modifications to register sales, ' +
-            'use a register_sale.update webhook instead.\n' +
-            '' +
-            'http://support.vendhq.com/hc/en-us/requests/32281\n' +
-            '' +
-            'The deprecation notice was added by one of our sysadmins trying to reduce database load. ' +
-            'Feel free to ignore this deprecation and I\'ll remove it.\n' +
-            'We will eventually be deprecating a time-based "since" ' +
-            'but not until we replace it with real alternative ' +
-            '(likely to be some sort of incrementing integer value ' +
-            '- so same effect, but nicer on the database).\n' +
-            'Thanks,\n' +
-            'Keri Henare\n' +
-            'Senior Developer Evangelist @ Vend',
+          'If you need to be notified of register sales, ' +
+          'and modifications to register sales, ' +
+          'use a register_sale.update webhook instead.\n' +
+          '' +
+          'http://support.vendhq.com/hc/en-us/requests/32281\n' +
+          '' +
+          'The deprecation notice was added by one of our sysadmins trying to reduce database load. ' +
+          'Feel free to ignore this deprecation and I\'ll remove it.\n' +
+          'We will eventually be deprecating a time-based "since" ' +
+          'but not until we replace it with real alternative ' +
+          '(likely to be some sort of incrementing integer value ' +
+          '- so same effect, but nicer on the database).\n' +
+          'Thanks,\n' +
+          'Keri Henare\n' +
+          'Senior Developer Evangelist @ Vend',
           required: false,
           key: 'since',
           value: undefined
@@ -914,7 +913,7 @@ var argsForInput = {
     }
   },
   suppliers: {
-    fetchAll: function() {
+    fetchAll: function () {
       return {
         page: {
           required: false,
@@ -938,7 +937,7 @@ var argsForInput = {
     }
   },
   users: {
-    fetchById: function() {
+    fetchById: function () {
       return {
         apiId: {
           required: true,
@@ -946,7 +945,7 @@ var argsForInput = {
         }
       };
     },
-    fetch: function() {
+    fetch: function () {
       return {
         after: {
           required: false,
@@ -973,7 +972,7 @@ var argsForInput = {
   }
 };
 
-var fetchStockOrdersForSuppliers = function(args, connectionInfo, retryCounter) {
+var fetchStockOrdersForSuppliers = function (args, connectionInfo, retryCounter) {
   log.debug('inside fetchStockOrderForSuppliers()');
   if (!retryCounter) {
     retryCounter = 0;
@@ -1003,20 +1002,20 @@ var fetchStockOrdersForSuppliers = function(args, connectionInfo, retryCounter) 
   return sendRequest(options, args, connectionInfo, fetchStockOrdersForSuppliers, retryCounter);
 };
 
-var fetchAllStockOrdersForSuppliers = function(connectionInfo, processPagedResults) {
+var fetchAllStockOrdersForSuppliers = function (connectionInfo, processPagedResults) {
   var args = {
-    page: {value: 1},//{value: 25},
-    pageSize: {value: 200}
+    page: { value: 1 },//{value: 25},
+    pageSize: { value: 200 }
   };
   // set a default function if none is provided
   if (!processPagedResults) {
-    processPagedResults = function(pagedData, previousData){
-      if (previousData && previousData.length>0) {
-        if (pagedData.consignments.length>0) {
-        log.debug('previousData: ', previousData.length);
-        pagedData.consignments = pagedData.consignments.concat(previousData);
-        log.debug('combined: ', pagedData.consignments.length);
-      }
+    processPagedResults = function (pagedData, previousData) {
+      if (previousData && previousData.length > 0) {
+        if (pagedData.consignments.length > 0) {
+          log.debug('previousData: ', previousData.length);
+          pagedData.consignments = pagedData.consignments.concat(previousData);
+          log.debug('combined: ', pagedData.consignments.length);
+        }
         else {
           pagedData.consignments = previousData;
         }
@@ -1027,7 +1026,7 @@ var fetchAllStockOrdersForSuppliers = function(connectionInfo, processPagedResul
   return processPagesRecursively(args, connectionInfo, fetchStockOrdersForSuppliers, processPagedResults);
 };
 
-var fetchProductsByConsignment  = function(args, connectionInfo, retryCounter) {
+var fetchProductsByConsignment = function (args, connectionInfo, retryCounter) {
   if (!retryCounter) {
     retryCounter = 0;
   } else {
@@ -1057,30 +1056,30 @@ var fetchProductsByConsignment  = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, fetchProductsByConsignment, retryCounter);
 };
 
-var defaultMethod_ForProcessingPagedResults_ForConsignmentProducts = function(pagedData, previousData){// jshint ignore:line
+var defaultMethod_ForProcessingPagedResults_ForConsignmentProducts = function (pagedData, previousData) {// jshint ignore:line
   /*jshint camelcase: false */
   log.debug('defaultMethod_ForProcessingPagedResults_ForConsignmentProducts');
-  if (previousData && previousData.length>0) {
+  if (previousData && previousData.length > 0) {
     //log.verbose(JSON.stringify(pagedData.consignment_products,replacer,2));
-    if (pagedData.consignment_products && pagedData.consignment_products.length>0) {
+    if (pagedData.consignment_products && pagedData.consignment_products.length > 0) {
       log.debug('previousData: ', previousData.length);
-        pagedData.consignment_products = pagedData.consignment_products.concat(previousData);
+      pagedData.consignment_products = pagedData.consignment_products.concat(previousData);
       log.debug('combined: ', pagedData.consignment_products.length);
-      }
+    }
     else {
       pagedData.consignment_products = previousData;
     }
   }
   //log.silly('finalData: ', pagedData.consignment_products);
   log.debug('finalData.length: ', pagedData.consignment_products.length);
-      return Promise.resolve(pagedData.consignment_products);
+  return Promise.resolve(pagedData.consignment_products);
 };
 
-var defaultMethod_ForProcessingPagedResults_ForSuppliers = function processPagedResults(pagedData, previousData){// jshint ignore:line
+var defaultMethod_ForProcessingPagedResults_ForSuppliers = function processPagedResults(pagedData, previousData) {// jshint ignore:line
   log.debug('defaultMethod_ForProcessingPagedResults_ForSuppliers');
-  if (previousData && previousData.length>0) {
+  if (previousData && previousData.length > 0) {
     //log.verbose(JSON.stringify(pagedData.suppliers,replacer,2));
-    if (pagedData.suppliers && pagedData.suppliers.length>0) {
+    if (pagedData.suppliers && pagedData.suppliers.length > 0) {
       log.debug('previousData: ', previousData.length);
       pagedData.suppliers = pagedData.suppliers.concat(previousData);
       log.debug('combined: ', pagedData.suppliers.length);
@@ -1092,9 +1091,9 @@ var defaultMethod_ForProcessingPagedResults_ForSuppliers = function processPaged
   return Promise.resolve(pagedData.suppliers);
 };
 
-var fetchAllProductsByConsignment = function(args, connectionInfo, processPagedResults) {
-  args.page = {value: 1};
-  args.pageSize = {value: 200};
+var fetchAllProductsByConsignment = function (args, connectionInfo, processPagedResults) {
+  args.page = { value: 1 };
+  args.pageSize = { value: 200 };
   // set a default function if none is provided
   if (!processPagedResults) {
     processPagedResults = defaultMethod_ForProcessingPagedResults_ForConsignmentProducts;// jshint ignore:line
@@ -1102,16 +1101,16 @@ var fetchAllProductsByConsignment = function(args, connectionInfo, processPagedR
   return processPagesRecursively(args, connectionInfo, fetchProductsByConsignment, processPagedResults);
 };
 
-var fetchAllProductsByConsignments = function(args, connectionInfo, processPagedResults) {
+var fetchAllProductsByConsignments = function (args, connectionInfo, processPagedResults) {
   // args.consignmentIds.value MUST already be set
-  args.page = {value: 1};
-  args.pageSize = {value: 200};
-  args.consignmentIdIndex = {value: 0};
-  args.consignmentId = {value: args.consignmentIds.value[args.consignmentIdIndex.value]};
-  args.getArray = function(){
+  args.page = { value: 1 };
+  args.pageSize = { value: 200 };
+  args.consignmentIdIndex = { value: 0 };
+  args.consignmentId = { value: args.consignmentIds.value[args.consignmentIdIndex.value] };
+  args.getArray = function () {
     return this.consignmentIds.value;
   };
-  args.getArrayIndex = function(){
+  args.getArrayIndex = function () {
     return this.consignmentIdIndex.value;
   };
 
@@ -1120,16 +1119,16 @@ var fetchAllProductsByConsignments = function(args, connectionInfo, processPaged
     args.consignmentIds.value,
     args.consignmentIdIndex.value,
     args,
-    function mergeStrategy(newData, previousData){
+    function mergeStrategy(newData, previousData) {
       log.debug('inside mergeStrategy()');
       //log.silly('newData ', newData);
       //log.silly('previousData ', previousData);
-      if (previousData && previousData.length>0) {
-        if (newData.length>0) {
-        log.debug('previousData.length: ', previousData.length);
-        newData = newData.concat(previousData);
-        log.debug('combinedData.length: ', newData.length);
-      }
+      if (previousData && previousData.length > 0) {
+        if (newData.length > 0) {
+          log.debug('previousData.length: ', previousData.length);
+          newData = newData.concat(previousData);
+          log.debug('combinedData.length: ', newData.length);
+        }
         else {
           newData = previousData;
         }
@@ -1138,7 +1137,7 @@ var fetchAllProductsByConsignments = function(args, connectionInfo, processPaged
       log.debug('finalData.length ', newData.length);
       return Promise.resolve(newData); // why do we need a promise?
     },
-    function setupNext(updateArgs){
+    function setupNext(updateArgs) {
       updateArgs.consignmentIdIndex.value = updateArgs.consignmentIdIndex.value + 1;
       if (updateArgs.consignmentIdIndex.value < updateArgs.consignmentIds.value.length) {
         updateArgs.consignmentId.value = updateArgs.consignmentIds.value[updateArgs.consignmentIdIndex.value];
@@ -1150,7 +1149,7 @@ var fetchAllProductsByConsignments = function(args, connectionInfo, processPaged
       }
       return updateArgs;
     },
-    function executeNext(updatedArgs){
+    function executeNext(updatedArgs) {
       log.debug('executing for consignmentId: ' + updatedArgs.consignmentId.value);
       //log.silly('updatedArgs: ', updatedArgs);
       return fetchAllProductsByConsignment(updatedArgs, connectionInfo, processPagedResults);
@@ -1158,15 +1157,15 @@ var fetchAllProductsByConsignments = function(args, connectionInfo, processPaged
   );
 };
 
-var resolveMissingSuppliers = function(args, connectionInfo) {
+var resolveMissingSuppliers = function (args, connectionInfo) {
   // args.consignmentIdToProductIdMap.value MUST already be set by the caller
   // args.consignmentProductId.value MUST be set for the very first call
-  args.arrayIndex = {value: 0};
-  args.consignmentProductId = {value: args.consignmentIdToProductIdMap.value[args.arrayIndex.value].productId};
-  args.getArray = function(){
+  args.arrayIndex = { value: 0 };
+  args.consignmentProductId = { value: args.consignmentIdToProductIdMap.value[args.arrayIndex.value].productId };
+  args.getArray = function () {
     return this.consignmentIdToProductIdMap.value;
   };
-  args.getArrayIndex = function(){
+  args.getArrayIndex = function () {
     return this.arrayIndex.value;
   };
 
@@ -1175,7 +1174,7 @@ var resolveMissingSuppliers = function(args, connectionInfo) {
     args.getArray(),
     args.getArrayIndex(),
     args,
-    function mergeStrategy(newData, previousData, args){/*jshint camelcase: false */
+    function mergeStrategy(newData, previousData, args) {/*jshint camelcase: false */
       log.debug('resolveMissingSuppliers - inside mergeStrategy()');
       var product = newData.products[0];
       //log.silly('newData: ', newData);
@@ -1187,7 +1186,7 @@ var resolveMissingSuppliers = function(args, connectionInfo) {
       previousData = args.getArray();
       return Promise.resolve(previousData); // why do we need a promise?
     },
-    function setupNext(updateArgs){
+    function setupNext(updateArgs) {
       log.debug('resolveMissingSuppliers - inside setupNext()');
       updateArgs.arrayIndex.value = updateArgs.getArrayIndex() + 1;
       if (updateArgs.getArrayIndex() < updateArgs.getArray().length) {
@@ -1200,7 +1199,7 @@ var resolveMissingSuppliers = function(args, connectionInfo) {
       }
       return updateArgs;
     },
-    function executeNext(updatedArgs){
+    function executeNext(updatedArgs) {
       log.debug('resolveMissingSuppliers - inside executeNext()');
       log.debug('resolveMissingSuppliers - executing for consignmentProductId: ' + updatedArgs.consignmentProductId.value);
       //log.silly('updatedArgs: ', updatedArgs);
@@ -1213,7 +1212,7 @@ var resolveMissingSuppliers = function(args, connectionInfo) {
 
 // WARN: if the ID is incorrect, the vend api the first 50 products which can totally throw folks off their mark!
 // TODO: instead of returning response, return the value of response.products[0] directly?
-var fetchProduct = function(args, connectionInfo, retryCounter) {
+var fetchProduct = function (args, connectionInfo, retryCounter) {
   if (!retryCounter) {
     retryCounter = 0;
   } else {
@@ -1247,8 +1246,8 @@ var fetchProduct = function(args, connectionInfo, retryCounter) {
  * The product's id is passed in the `body` as a json object along with other parameters
  * instead of passing it in the url as querystring. That's how an update happens in Vend.
  */
-var updateProductById = function(args, connectionInfo, retryCounter) {
-  if ( !(args && argsAreValid(args)) ) {
+var updateProductById = function (args, connectionInfo, retryCounter) {
+  if (!(args && argsAreValid(args))) {
     return Promise.reject('missing required arguments for updateProductById()');
   }
 
@@ -1280,11 +1279,11 @@ var updateProductById = function(args, connectionInfo, retryCounter) {
 };
 
 
-var deleteProductById = function(args, connectionInfo, retryCounter) {
+var deleteProductById = function (args, connectionInfo, retryCounter) {
   log.debug('inside deleteProductById()');
 
   log.debug(args);
-  if ( !(args && argsAreValid(args)) ) {
+  if (!(args && argsAreValid(args))) {
     return Promise.reject('missing required arguments for deleteProductById()');
   }
 
@@ -1314,8 +1313,8 @@ var deleteProductById = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, deleteProductById, retryCounter);
 };
 
-var createProduct = function(args, connectionInfo, retryCounter) {
-  if ( !(args && argsAreValid(args)) ) {
+var createProduct = function (args, connectionInfo, retryCounter) {
+  if (!(args && argsAreValid(args))) {
     return Promise.reject('missing required arguments for createProduct()');
   }
 
@@ -1347,8 +1346,8 @@ var createProduct = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, createProduct, retryCounter);
 };
 
-var uploadProductImage = function(args, connectionInfo, retryCounter) {
-  if ( !(args && argsAreValid(args)) ) {
+var uploadProductImage = function (args, connectionInfo, retryCounter) {
+  if (!(args && argsAreValid(args))) {
     return Promise.reject('missing required arguments for uploadProductImage()');
   }
 
@@ -1380,8 +1379,8 @@ var uploadProductImage = function(args, connectionInfo, retryCounter) {
 };
 
 // TODO: instead of returning response, return the value of response.products[0] directly?
-var fetchProductByHandle  = function(args, connectionInfo, retryCounter) {
-  if ( !(args && args.handle && args.handle.value) ) {
+var fetchProductByHandle = function (args, connectionInfo, retryCounter) {
+  if (!(args && args.handle && args.handle.value)) {
     return Promise.reject('missing required arguments for fetchProductByHandle()');
   }
 
@@ -1417,8 +1416,8 @@ var fetchProductByHandle  = function(args, connectionInfo, retryCounter) {
 };
 
 // TODO: instead of returning response, return the value of response.products[0] directly?
-var fetchProductBySku  = function(args, connectionInfo, retryCounter) {
-  if ( !(args && args.sku && args.sku.value) ) {
+var fetchProductBySku = function (args, connectionInfo, retryCounter) {
+  if (!(args && args.sku && args.sku.value)) {
     return Promise.reject('missing required arguments for fetchProductByHandle()');
   }
 
@@ -1453,7 +1452,7 @@ var fetchProductBySku  = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, fetchProductBySku, retryCounter);
 };
 
-var fetchProducts = function(args, connectionInfo, retryCounter) {
+var fetchProducts = function (args, connectionInfo, retryCounter) {
   if (!retryCounter) {
     retryCounter = 0;
   } else {
@@ -1490,7 +1489,7 @@ var fetchProducts = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, fetchProducts, retryCounter);
 };
 
-var fetchAllProducts = function(connectionInfo, processPagedResults) {
+var fetchAllProducts = function (connectionInfo, processPagedResults) {
   var args = argsForInput.products.fetch();
   args.orderBy.value = 'id';
   args.page.value = 1;
@@ -1499,11 +1498,11 @@ var fetchAllProducts = function(connectionInfo, processPagedResults) {
 
   // set a default function if none is provided
   if (!processPagedResults) {
-    processPagedResults = function processPagedResults(pagedData, previousData){
+    processPagedResults = function processPagedResults(pagedData, previousData) {
       log.debug('fetchAllProducts - default processPagedResults()');
-      if (previousData && previousData.length>0) {
+      if (previousData && previousData.length > 0) {
         //log.verbose(JSON.stringify(pagedData.products,replacer,2));
-        if (pagedData.products && pagedData.products.length>0) {
+        if (pagedData.products && pagedData.products.length > 0) {
           log.debug('previousData: ', previousData.length);
           pagedData.products = pagedData.products.concat(previousData);
           log.debug('combined: ', pagedData.products.length);
@@ -1518,12 +1517,12 @@ var fetchAllProducts = function(connectionInfo, processPagedResults) {
   return processPagesRecursively(args, connectionInfo, fetchProducts, processPagedResults);
 };
 
-var fetchPaginationInfo = function(args, connectionInfo){
-  if ( !(args && argsAreValid(args)) ) {
+var fetchPaginationInfo = function (args, connectionInfo) {
+  if (!(args && argsAreValid(args))) {
     return Promise.reject('missing required arguments for fetchPaginationInfo()');
   }
   return fetchProducts(args, connectionInfo)
-    .then(function(result){/*jshint camelcase: false */
+    .then(function (result) {/*jshint camelcase: false */
 
       // HACK - until Vend responses become consistent
       if (result && result.results && !result.pagination) {
@@ -1539,7 +1538,7 @@ var fetchPaginationInfo = function(args, connectionInfo){
     });
 };
 
-var fetchCustomers = function(args, connectionInfo, retryCounter) {
+var fetchCustomers = function (args, connectionInfo, retryCounter) {
   log.debug('inside fetchCustomers()');
   if (!retryCounter) {
     retryCounter = 0;
@@ -1571,14 +1570,14 @@ var fetchCustomers = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, fetchCustomers, retryCounter);
 };
 
-var fetchCustomerByEmail = function(email, connectionInfo, retryCounter) {
+var fetchCustomerByEmail = function (email, connectionInfo, retryCounter) {
   log.debug('inside fetchCustomerByEmail()');
   var args = args.customers.fetch();
   args.email.value = email;
   fetchCustomers(args, connectionInfo, retryCounter);
 };
 
-var fetchRegisters = function(args, connectionInfo, retryCounter) {
+var fetchRegisters = function (args, connectionInfo, retryCounter) {
   log.debug('inside fetchRegisters()');
   if (!retryCounter) {
     retryCounter = 0;
@@ -1608,20 +1607,20 @@ var fetchRegisters = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, fetchRegisters, retryCounter);
 };
 
-var fetchAllRegisters = function(args, connectionInfo, processPagedResults) {
+var fetchAllRegisters = function (args, connectionInfo, processPagedResults) {
   if (!args) {
     args = argsForInput.registers.fetch();
   }
-  args.page = {value:1};
-  args.pageSize = {value:200};
+  args.page = { value: 1 };
+  args.pageSize = { value: 200 };
 
   // set a default function if none is provided
   if (!processPagedResults) {
-    processPagedResults = function processPagedResults(pagedData, previousData){
+    processPagedResults = function processPagedResults(pagedData, previousData) {
       log.debug('fetchAllRegisters - default processPagedResults()');
-      if (previousData && previousData.length>0) {
+      if (previousData && previousData.length > 0) {
         //log.verbose(JSON.stringify(pagedData.products,replacer,2));
-        if (pagedData.registers && pagedData.registers.length>0) {
+        if (pagedData.registers && pagedData.registers.length > 0) {
           log.debug('previousData: ', previousData.length);
           pagedData.registers = pagedData.registers.concat(previousData);
           log.debug('combined: ', pagedData.registers.length);
@@ -1636,7 +1635,7 @@ var fetchAllRegisters = function(args, connectionInfo, processPagedResults) {
   return processPagesRecursively(args, connectionInfo, fetchRegisters, processPagedResults);
 };
 
-var fetchRegister  = function(args, connectionInfo, retryCounter) {
+var fetchRegister = function (args, connectionInfo, retryCounter) {
   if (!retryCounter) {
     retryCounter = 0;
   } else {
@@ -1661,7 +1660,7 @@ var fetchRegister  = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, fetchRegister, retryCounter);
 };
 
-var fetchPaymentTypes = function(args, connectionInfo, retryCounter) {
+var fetchPaymentTypes = function (args, connectionInfo, retryCounter) {
   log.debug('inside fetchPaymentTypes()');
   if (!retryCounter) {
     retryCounter = 0;
@@ -1687,7 +1686,7 @@ var fetchPaymentTypes = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, fetchPaymentTypes, retryCounter);
 };
 
-var fetchProductTypes = function(args, connectionInfo, retryCounter) {
+var fetchProductTypes = function (args, connectionInfo, retryCounter) {
   log.debug('inside fetchProductTypes()');
   if (!retryCounter) {
     retryCounter = 0;
@@ -1720,8 +1719,8 @@ var fetchProductTypes = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, fetchProductTypes, retryCounter);
 };
 
-var createProductTypes = function(args, connectionInfo, retryCounter) {
-  if ( !(args && argsAreValid(args)) ) {
+var createProductTypes = function (args, connectionInfo, retryCounter) {
+  if (!(args && argsAreValid(args))) {
     return Promise.reject('missing required arguments for createProductTypes()');
   }
 
@@ -1752,7 +1751,7 @@ var createProductTypes = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, createProductTypes, retryCounter);
 };
 
-var fetchTaxes = function(args, connectionInfo, retryCounter) {
+var fetchTaxes = function (args, connectionInfo, retryCounter) {
   log.debug('inside fetchTaxes()');
   if (!retryCounter) {
     retryCounter = 0;
@@ -1778,8 +1777,8 @@ var fetchTaxes = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, fetchTaxes, retryCounter);
 };
 
-var createTax = function(args, connectionInfo, retryCounter) {
-  if ( !(args && argsAreValid(args)) ) {
+var createTax = function (args, connectionInfo, retryCounter) {
+  if (!(args && argsAreValid(args))) {
     return Promise.reject('missing required arguments for createTax()');
   }
 
@@ -1810,7 +1809,7 @@ var createTax = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, createTax, retryCounter);
 };
 
-var fetchBrands = function(args, connectionInfo, retryCounter) {
+var fetchBrands = function (args, connectionInfo, retryCounter) {
   log.debug('inside fetchBrands()');
   if (!retryCounter) {
     retryCounter = 0;
@@ -1843,8 +1842,8 @@ var fetchBrands = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, fetchBrands, retryCounter);
 };
 
-var createBrand = function(args, connectionInfo, retryCounter) {
-  if ( !(args && argsAreValid(args)) ) {
+var createBrand = function (args, connectionInfo, retryCounter) {
+  if (!(args && argsAreValid(args))) {
     return Promise.reject('missing required arguments for createBrand()');
   }
 
@@ -1875,7 +1874,7 @@ var createBrand = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, createBrand, retryCounter);
 };
 
-var fetchTags = function(args, connectionInfo, retryCounter) {
+var fetchTags = function (args, connectionInfo, retryCounter) {
   log.debug('inside fetchTags()');
   if (!retryCounter) {
     retryCounter = 0;
@@ -1908,28 +1907,28 @@ var fetchTags = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, fetchTags, retryCounter);
 };
 
-var fetchAllTags = function(args, connectionInfo, processPagedResults) {
+var fetchAllTags = function (args, connectionInfo, processPagedResults) {
   log.debug('inside fetchAllTags()');
   if (!args) {
     args = argsForInput.tags.fetch();
   }
   if (!args.after || !args.after.value) {
-    args.after = {value:0};
+    args.after = { value: 0 };
   }
   if (!args.page || !args.page.value) {
-    args.page = {value:1}; // page has no operational role here, just useful for readable logs
+    args.page = { value: 1 }; // page has no operational role here, just useful for readable logs
   }
   if (!args.pageSize || !args.pageSize.value) {
-    args.pageSize = {value:200};
+    args.pageSize = { value: 200 };
   }
 
   // set a default function if none is provided
   if (!processPagedResults) {
-    processPagedResults = function processPagedResults(pagedData, previousData){
+    processPagedResults = function processPagedResults(pagedData, previousData) {
       log.debug('fetchAllTags - default processPagedResults()');
-      if (previousData && previousData.length>0) {
+      if (previousData && previousData.length > 0) {
         //log.verbose(JSON.stringify(pagedData.data,replacer,2));
-        if (pagedData.data && pagedData.data.length>0) {
+        if (pagedData.data && pagedData.data.length > 0) {
           log.debug('previousData: ', previousData.length);
           pagedData.data = pagedData.data.concat(previousData);
           log.debug('combined: ', pagedData.data.length);
@@ -1944,8 +1943,8 @@ var fetchAllTags = function(args, connectionInfo, processPagedResults) {
   return processPagesRecursively(args, connectionInfo, fetchTags, processPagedResults);
 };
 
-var createTag = function(args, connectionInfo, retryCounter) {
-  if ( !(args && argsAreValid(args)) ) {
+var createTag = function (args, connectionInfo, retryCounter) {
+  if (!(args && argsAreValid(args))) {
     return Promise.reject('missing required arguments for createTag()');
   }
 
@@ -1976,7 +1975,7 @@ var createTag = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, createTag, retryCounter);
 };
 
-var fetchRegisterSales = function(args, connectionInfo, retryCounter) {
+var fetchRegisterSales = function (args, connectionInfo, retryCounter) {
   if (!retryCounter) {
     retryCounter = 0;
   } else {
@@ -2005,20 +2004,20 @@ var fetchRegisterSales = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, fetchRegisterSales, retryCounter);
 };
 
-var fetchAllRegisterSales = function(args, connectionInfo, processPagedResults) {
+var fetchAllRegisterSales = function (args, connectionInfo, processPagedResults) {
   if (!args) {
     args = argsForInput.sales.fetchAll();
   }
-  args.page = {value:1};
-  args.pageSize = {value:200};
+  args.page = { value: 1 };
+  args.pageSize = { value: 200 };
 
   // set a default function if none is provided
   if (!processPagedResults) {
-    processPagedResults = function processPagedResults(pagedData, previousData){/*jshint camelcase: false */
+    processPagedResults = function processPagedResults(pagedData, previousData) {/*jshint camelcase: false */
       log.debug('fetchAllRegisterSales - default processPagedResults()');
-      if (previousData && previousData.length>0) {
+      if (previousData && previousData.length > 0) {
         //log.verbose(JSON.stringify(pagedData.products,replacer,2));
-        if (pagedData.register_sales && pagedData.register_sales.length>0) {
+        if (pagedData.register_sales && pagedData.register_sales.length > 0) {
           log.debug('previousData: ', previousData.length);
           pagedData.register_sales = pagedData.register_sales.concat(previousData);
           log.debug('combined: ', pagedData.register_sales.length);
@@ -2033,7 +2032,7 @@ var fetchAllRegisterSales = function(args, connectionInfo, processPagedResults) 
   return processPagesRecursively(args, connectionInfo, fetchRegisterSales, processPagedResults);
 };
 
-var fetchOutlets = function(args, connectionInfo, retryCounter) {
+var fetchOutlets = function (args, connectionInfo, retryCounter) {
   log.debug('inside fetchOutlets()');
   if (!retryCounter) {
     retryCounter = 0;
@@ -2069,29 +2068,29 @@ var fetchOutlets = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, fetchOutlets, retryCounter);
 };
 
-var fetchAllOutlets = function(args, connectionInfo, processPagedResults) {
+var fetchAllOutlets = function (args, connectionInfo, processPagedResults) {
   log.debug('inside fetchAllOutlets()');
   if (!args) {
     args = argsForInput.outlets.fetch();
   }
   if (!args.after || !args.after.value) {
-    args.after = {value:0};
+    args.after = { value: 0 };
   }
   if (!args.page || !args.page.value) {
-    args.page = {value:1}; // page has no operational role here, just useful for readable logs
+    args.page = { value: 1 }; // page has no operational role here, just useful for readable logs
   }
   if (!args.pageSize || !args.pageSize.value) {
-    args.pageSize = {value:200};
+    args.pageSize = { value: 200 };
   }
-  args.path = {value:'/api/2.0/outlets'};
+  args.path = { value: '/api/2.0/outlets' };
 
   // set a default function if none is provided
   if (!processPagedResults) {
-    processPagedResults = function processPagedResults(pagedData, previousData){
+    processPagedResults = function processPagedResults(pagedData, previousData) {
       log.debug('fetchAllOutlets - default processPagedResults()');
-      if (previousData && previousData.length>0) {
+      if (previousData && previousData.length > 0) {
         //log.verbose(JSON.stringify(pagedData.data,replacer,2));
-        if (pagedData.data && pagedData.data.length>0) {
+        if (pagedData.data && pagedData.data.length > 0) {
           log.debug('previousData: ', previousData.length);
           pagedData.data = pagedData.data.concat(previousData);
           log.debug('combined: ', pagedData.data.length);
@@ -2106,7 +2105,7 @@ var fetchAllOutlets = function(args, connectionInfo, processPagedResults) {
   return processPagesRecursively(args, connectionInfo, fetchOutlets, processPagedResults);
 };
 
-var fetchOutlet = function(args, connectionInfo, retryCounter) {
+var fetchOutlet = function (args, connectionInfo, retryCounter) {
   if (!retryCounter) {
     retryCounter = 0;
   } else {
@@ -2131,7 +2130,7 @@ var fetchOutlet = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, fetchOutlet, retryCounter);
 };
 
-var fetchSupplier = function(args, connectionInfo, retryCounter) {
+var fetchSupplier = function (args, connectionInfo, retryCounter) {
   log.debug('inside fetchSuppliers()');
   if (!retryCounter) {
     retryCounter = 0;
@@ -2157,7 +2156,7 @@ var fetchSupplier = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, fetchSupplier, retryCounter);
 };
 
-var fetchSuppliers = function(args, connectionInfo, retryCounter) {
+var fetchSuppliers = function (args, connectionInfo, retryCounter) {
   log.debug('inside fetchSuppliers()');
   if (!retryCounter) {
     retryCounter = 0;
@@ -2179,7 +2178,7 @@ var fetchSuppliers = function(args, connectionInfo, retryCounter) {
       'Accept': 'application/json'
     }
   };
-  if (args.page && args.pageSize){
+  if (args.page && args.pageSize) {
     // NOTE: page and page_size work! For ex: page=1,page_size=1 return just one result in response.suppliers
     options.qs = {/*jshint camelcase: false */
       page: args.page.value,
@@ -2193,7 +2192,7 @@ var fetchSuppliers = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, fetchSuppliers, retryCounter);
 };
 
-var fetchAllSuppliers = function(connectionInfo, processPagedResults) {
+var fetchAllSuppliers = function (connectionInfo, processPagedResults) {
   var args = argsForInput.suppliers.fetchAll();
   args.page.value = 1;
   args.pageSize.value = 200;
@@ -2205,8 +2204,8 @@ var fetchAllSuppliers = function(connectionInfo, processPagedResults) {
   return processPagesRecursively(args, connectionInfo, fetchSuppliers, processPagedResults);
 };
 
-var createSupplier = function(args, connectionInfo, retryCounter) {
-  if ( !(args && argsAreValid(args)) ) {
+var createSupplier = function (args, connectionInfo, retryCounter) {
+  if (!(args && argsAreValid(args))) {
     return Promise.reject('missing required arguments for createSupplier()');
   }
 
@@ -2237,7 +2236,7 @@ var createSupplier = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, createSupplier, retryCounter);
 };
 
-var fetchConsignment  = function(args, connectionInfo, retryCounter) {
+var fetchConsignment = function (args, connectionInfo, retryCounter) {
   if (!retryCounter) {
     retryCounter = 0;
   } else {
@@ -2262,7 +2261,7 @@ var fetchConsignment  = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, fetchConsignment, retryCounter);
 };
 
-var fetchConsignments  = function(args, connectionInfo, retryCounter) {
+var fetchConsignments = function (args, connectionInfo, retryCounter) {
   log.debug('inside fetchConsignments()');
   if (!retryCounter) {
     retryCounter = 0;
@@ -2270,7 +2269,7 @@ var fetchConsignments  = function(args, connectionInfo, retryCounter) {
     log.debug('retry # ' + retryCounter);
   }
 
-  var path = 'api/2.0/consignments';
+  var path = '/api/2.0/consignments';
   var vendUrl = 'https://' + connectionInfo.domainPrefix + '.vendhq.com' + path;
   var authString = 'Bearer ' + connectionInfo.accessToken;
   log.debug('GET ' + vendUrl);
@@ -2295,32 +2294,32 @@ var fetchConsignments  = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, fetchSuppliers, retryCounter);
 };
 
-var fetchAllConsignment  = function(connectionInfo, retryCounter) {
-  var args = argsForInput.users.fetch();
+var fetchAllConsignment = function (connectionInfo, processPagedResults) {
+  var args = argsForInput.consignments.fetch();
   args.page.value = 1;
   args.pageSize.value = 200;
 
   // set a default function if none is provided
   if (!processPagedResults) {
-    processPagedResults = function processPagedResults(pagedData, previousData){
+    processPagedResults = function processPagedResults(pagedData, previousData) {
       log.debug('fetchAllConsignment - default processPagedResults()');
-      if (previousData && previousData.length>0) {
-        if (pagedData.consignments && pagedData.consignments.length>0) {
+      if (previousData && previousData.length > 0) {
+        if (pagedData.data && pagedData.data.length > 0) {
           log.debug('previousData: ', previousData.length);
-          pagedData.consignments = pagedData.consignments.concat(previousData);
-          log.debug('combined: ', pagedData.consignments.length);
+          pagedData.data = pagedData.data.concat(previousData);
+          log.debug('combined: ', pagedData.data.length);
         }
         else {
-          pagedData.consignments = previousData;
+          pagedData.data = previousData;
         }
       }
-      return Promise.resolve(pagedData.consignments);
+      return Promise.resolve(pagedData.data);
     };
   }
   return processPagesRecursively(args, connectionInfo, fetchConsignments, processPagedResults);
 };
 
-var createConsignmentProduct = function(args, connectionInfo, retryCounter) {
+var createConsignmentProduct = function (args, connectionInfo, retryCounter) {
   log.debug('inside createConsignmentProduct()');
 
   var body = null;
@@ -2328,7 +2327,7 @@ var createConsignmentProduct = function(args, connectionInfo, retryCounter) {
     body = args.body;
   }
   else {
-    if ( !(args && argsAreValid(args)) ) {
+    if (!(args && argsAreValid(args))) {
       return Promise.reject('missing required arguments for createConsignmentProduct()');
     }
     body = {
@@ -2368,10 +2367,10 @@ var createConsignmentProduct = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, createConsignmentProduct, retryCounter);
 };
 
-var createStockOrder = function(args, connectionInfo, retryCounter) {
+var createStockOrder = function (args, connectionInfo, retryCounter) {
   log.debug('inside createStockOrder()');
 
-  if ( !(args && argsAreValid(args)) ) {
+  if (!(args && argsAreValid(args))) {
     return Promise.reject('missing required arguments for createStockOrder()');
   }
 
@@ -2411,7 +2410,7 @@ var createStockOrder = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, createStockOrder, retryCounter);
 };
 
-var createCustomer = function(body, connectionInfo, retryCounter) {
+var createCustomer = function (body, connectionInfo, retryCounter) {
   log.debug('inside createCustomer()');
   if (!retryCounter) {
     retryCounter = 0;
@@ -2439,7 +2438,7 @@ var createCustomer = function(body, connectionInfo, retryCounter) {
   return sendRequest(options, body, connectionInfo, createCustomer, retryCounter);
 };
 
-var createRegisterSale = function(body, connectionInfo, retryCounter) {
+var createRegisterSale = function (body, connectionInfo, retryCounter) {
   log.debug('inside createRegisterSale()');
   if (!retryCounter) {
     retryCounter = 0;
@@ -2455,7 +2454,7 @@ var createRegisterSale = function(body, connectionInfo, retryCounter) {
   try {
     body = _.isObject(body) ? body : JSON.parse(body);
   }
-  catch(exception) {
+  catch (exception) {
     log.error('createRegisterSale', exception);
     return Promise.reject('inside createRegisterSale() - failed to parse the sale body');
   }
@@ -2475,10 +2474,10 @@ var createRegisterSale = function(body, connectionInfo, retryCounter) {
   return sendRequest(options, body, connectionInfo, createRegisterSale, retryCounter);
 };
 
-var updateConsignmentProduct = function(args, connectionInfo, retryCounter) {
+var updateConsignmentProduct = function (args, connectionInfo, retryCounter) {
   log.debug('inside updateConsignmentProduct()', args);
 
-  if ( !(args && argsAreValid(args)) ) {
+  if (!(args && argsAreValid(args))) {
     return Promise.reject('missing required arguments for updateConsignmentProduct()');
   }
 
@@ -2510,10 +2509,10 @@ var updateConsignmentProduct = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, updateConsignmentProduct, retryCounter);
 };
 
-var markStockOrderAsSent = function(args, connectionInfo, retryCounter) {
+var markStockOrderAsSent = function (args, connectionInfo, retryCounter) {
   log.debug('inside markStockOrderAsSent()', args);
 
-  if ( !(args && argsAreValid(args)) ) {
+  if (!(args && argsAreValid(args))) {
     return Promise.reject('missing required arguments for markStockOrderAsSent()');
   }
 
@@ -2546,10 +2545,10 @@ var markStockOrderAsSent = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, markStockOrderAsSent, retryCounter);
 };
 
-var markStockOrderAsReceived = function(args, connectionInfo, retryCounter) {
+var markStockOrderAsReceived = function (args, connectionInfo, retryCounter) {
   log.debug('inside markStockOrderAsReceived()', args);
 
-  if ( !(args && argsAreValid(args)) ) {
+  if (!(args && argsAreValid(args))) {
     return Promise.reject('missing required arguments for markStockOrderAsReceived()');
   }
 
@@ -2582,10 +2581,10 @@ var markStockOrderAsReceived = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, markStockOrderAsReceived, retryCounter);
 };
 
-var deleteStockOrder = function(args, connectionInfo, retryCounter) {
+var deleteStockOrder = function (args, connectionInfo, retryCounter) {
   log.debug('inside deleteStockOrder()');
 
-  if ( !(args && argsAreValid(args)) ) {
+  if (!(args && argsAreValid(args))) {
     return Promise.reject('missing required arguments for deleteStockOrder()');
   }
 
@@ -2616,11 +2615,11 @@ var deleteStockOrder = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, deleteStockOrder, retryCounter);
 };
 
-var deleteConsignmentProduct = function(args, connectionInfo, retryCounter) {
+var deleteConsignmentProduct = function (args, connectionInfo, retryCounter) {
   log.debug('inside deleteConsignmentProduct()');
 
   log.debug(args);
-  if ( !(args && argsAreValid(args)) ) {
+  if (!(args && argsAreValid(args))) {
     return Promise.reject('missing required arguments for deleteStockOrder()');
   }
 
@@ -2650,7 +2649,7 @@ var deleteConsignmentProduct = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, deleteConsignmentProduct, retryCounter);
 };
 
-var fetchUser = function(args, connectionInfo, retryCounter) {
+var fetchUser = function (args, connectionInfo, retryCounter) {
   if (!retryCounter) {
     retryCounter = 0;
   } else {
@@ -2676,7 +2675,7 @@ var fetchUser = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, fetchUser, retryCounter);
 };
 
-var fetchUsers = function(args, connectionInfo, retryCounter) {
+var fetchUsers = function (args, connectionInfo, retryCounter) {
   if (!retryCounter) {
     retryCounter = 0;
   } else {
@@ -2708,18 +2707,18 @@ var fetchUsers = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, fetchProducts, retryCounter);
 };
 
-var fetchAllUsers = function(connectionInfo, processPagedResults) {
+var fetchAllUsers = function (connectionInfo, processPagedResults) {
   var args = argsForInput.users.fetch();
   args.page.value = 1;
   args.pageSize.value = 200;
 
   // set a default function if none is provided
   if (!processPagedResults) {
-    processPagedResults = function processPagedResults(pagedData, previousData){
+    processPagedResults = function processPagedResults(pagedData, previousData) {
       log.debug('fetchAllUsers - default processPagedResults()');
-      if (previousData && previousData.length>0) {
+      if (previousData && previousData.length > 0) {
         //log.verbose(JSON.stringify(pagedData.products,replacer,2));
-        if (pagedData.users && pagedData.users.length>0) {
+        if (pagedData.users && pagedData.users.length > 0) {
           log.debug('previousData: ', previousData.length);
           pagedData.users = pagedData.users.concat(previousData);
           log.debug('combined: ', pagedData.users.length);
@@ -2734,7 +2733,7 @@ var fetchAllUsers = function(connectionInfo, processPagedResults) {
   return processPagesRecursively(args, connectionInfo, fetchUsers, processPagedResults);
 };
 
-var fetchRegisterSale = function(args, connectionInfo, retryCounter) {
+var fetchRegisterSale = function (args, connectionInfo, retryCounter) {
   if (!retryCounter) {
     retryCounter = 0;
   } else {
@@ -2760,7 +2759,7 @@ var fetchRegisterSale = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, fetchRegisterSale, retryCounter);
 };
 
-var updateRegisterSale = function(body, connectionInfo, retryCounter) {
+var updateRegisterSale = function (body, connectionInfo, retryCounter) {
   log.debug('inside updateRegisterSale()');
   if (!retryCounter) {
     retryCounter = 0;
@@ -2776,7 +2775,7 @@ var updateRegisterSale = function(body, connectionInfo, retryCounter) {
   try {
     body = _.isObject(body) ? body : JSON.parse(body);
   }
-  catch(exception) {
+  catch (exception) {
     log.error('updateRegisterSale', exception);
     return Promise.reject('inside updateRegisterSale() - failed to parse the sale body');
   }
@@ -2796,10 +2795,10 @@ var updateRegisterSale = function(body, connectionInfo, retryCounter) {
   return sendRequest(options, body, connectionInfo, updateRegisterSale, retryCounter);
 };
 
-var createStocktake = function(args, connectionInfo, retryCounter) {
+var createStocktake = function (args, connectionInfo, retryCounter) {
   log.debug('inside createStocktake()');
 
-  if ( !(args && argsAreValid(args)) ) {
+  if (!(args && argsAreValid(args))) {
     return Promise.reject('missing required arguments for createStocktake()');
   }
 
@@ -2838,10 +2837,10 @@ var createStocktake = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, createStocktake, retryCounter);
 };
 
-var markStocktakeAsInProgress = function(args, connectionInfo, retryCounter) {
+var markStocktakeAsInProgress = function (args, connectionInfo, retryCounter) {
   log.debug('inside markStocktakeAsInProgress()', args);
 
-  if ( !(args && argsAreValid(args)) ) {
+  if (!(args && argsAreValid(args))) {
     return Promise.reject('missing required arguments for markStocktakeAsInProgress()');
   }
 
@@ -2874,10 +2873,10 @@ var markStocktakeAsInProgress = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, markStocktakeAsInProgress, retryCounter);
 };
 
-var markStocktakeAsComplete = function(args, connectionInfo, retryCounter) {
+var markStocktakeAsComplete = function (args, connectionInfo, retryCounter) {
   log.debug('inside markStocktakeAsComplete()', args);
 
-  if ( !(args && argsAreValid(args)) ) {
+  if (!(args && argsAreValid(args))) {
     return Promise.reject('missing required arguments for markStocktakeAsComplete()');
   }
 
@@ -2910,10 +2909,10 @@ var markStocktakeAsComplete = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, markStocktakeAsComplete, retryCounter);
 };
 
-var deleteStocktake = function(args, connectionInfo, retryCounter) {
+var deleteStocktake = function (args, connectionInfo, retryCounter) {
   log.debug('inside deleteStocktake()');
 
-  if ( !(args && argsAreValid(args)) ) {
+  if (!(args && argsAreValid(args))) {
     return Promise.reject('missing required arguments for deleteStocktake()');
   }
 
@@ -2944,12 +2943,12 @@ var deleteStocktake = function(args, connectionInfo, retryCounter) {
   return sendRequest(options, args, connectionInfo, deleteStocktake, retryCounter);
 };
 
-var getInitialAccessToken = function(tokenService, clientId, clientSecret, redirectUri, code, domainPrefix, state) {
+var getInitialAccessToken = function (tokenService, clientId, clientSecret, redirectUri, code, domainPrefix, state) {
   // TODO: tweak winston logs to prefix method signature (like breadcrumbs) when logging?
   log.debug('getInitialAccessToken - token_service: ' + tokenService);
   log.debug('getInitialAccessToken - client Id: ' + clientId);
   log.debug('getInitialAccessToken - client Secret: ' + clientSecret);
-  log.debug('getInitialAccessToken - redirect Uri: ' +  redirectUri);
+  log.debug('getInitialAccessToken - redirect Uri: ' + redirectUri);
   log.debug('getInitialAccessToken - code: ' + code);
   log.debug('getInitialAccessToken - domain_prefix: ' + domainPrefix);
   log.debug('getInitialAccessToken - state: ' + state);
@@ -2961,7 +2960,7 @@ var getInitialAccessToken = function(tokenService, clientId, clientSecret, redir
     headers: {
       'Accept': 'application/json'
     },
-    form:{
+    form: {
       'grant_type': 'authorization_code',
       'client_id': clientId,
       'client_secret': clientSecret,
@@ -2972,33 +2971,33 @@ var getInitialAccessToken = function(tokenService, clientId, clientSecret, redir
   };
   return request.post(options)
     .then(successHandler)
-    .catch(RateLimitingError, function(e) {// jshint ignore:line
+    .catch(RateLimitingError, function (e) {// jshint ignore:line
       log.error('A RateLimitingError error like "429 Too Many Requests" happened: '
         + e.statusCode + ' ' + e.response.body + '\n'
-        + JSON.stringify(e.response.headers,null,2));
+        + JSON.stringify(e.response.headers, null, 2));
     })
-    .catch(ClientError, function(e) {// jshint ignore:line
+    .catch(ClientError, function (e) {// jshint ignore:line
       log.error('A ClientError happened: '
-          + e.statusCode + ' ' + e.response.body + '\n'
+        + e.statusCode + ' ' + e.response.body + '\n'
         /*+ JSON.stringify(e.response.headers,null,2)
          + JSON.stringify(e,null,2)*/
       );
       // TODO: add retry logic
     })
-    .catch(function(e) {
+    .catch(function (e) {
       log.error('getInitialAccessToken', 'An unexpected error occurred: ', e);
     });
 };
 
-var refreshAccessToken = function(tokenService, clientId, clientSecret, refreshToken, domainPrefix) {
+var refreshAccessToken = function (tokenService, clientId, clientSecret, refreshToken, domainPrefix) {
   // TODO: tweak winston logs to prefix method signature (like breadcrumbs) when logging?
   log.debug('refreshAccessToken - token service: ' + tokenService);
   log.debug('refreshAccessToken - client Id: ' + clientId);
   log.debug('refreshAccessToken - client Secret: ' + clientSecret);
-  log.debug('refreshAccessToken - refresh token: ' +  refreshToken);
+  log.debug('refreshAccessToken - refresh token: ' + refreshToken);
   log.debug('refreshAccessToken - domain prefix: ' + domainPrefix);
 
-  if ( !(tokenService && clientId && clientSecret && refreshToken) ) {
+  if (!(tokenService && clientId && clientSecret && refreshToken)) {
     return Promise.reject('missing required arguments for refreshAccessToken()');
   }
 
@@ -3009,7 +3008,7 @@ var refreshAccessToken = function(tokenService, clientId, clientSecret, refreshT
     headers: {
       'Accept': 'application/json'
     },
-    form:{
+    form: {
       'grant_type': 'refresh_token',
       'client_id': clientId,
       'client_secret': clientSecret,
@@ -3018,14 +3017,14 @@ var refreshAccessToken = function(tokenService, clientId, clientSecret, refreshT
   };
   return request.post(options)
     .then(successHandler)
-    .catch(RateLimitingError, function(e) {// jshint ignore:line
+    .catch(RateLimitingError, function (e) {// jshint ignore:line
       log.error('A RateLimitingError error like "429 Too Many Requests" happened: '
         + e.statusCode + ' ' + e.response.body + '\n'
-        + JSON.stringify(e.response.headers,null,2));
+        + JSON.stringify(e.response.headers, null, 2));
     })
-    .catch(ClientError, function(e) {// jshint ignore:line
+    .catch(ClientError, function (e) {// jshint ignore:line
       log.error('A ClientError happened: '
-          + e.statusCode + ' ' + e.response.body + '\n'
+        + e.statusCode + ' ' + e.response.body + '\n'
         /*+ JSON.stringify(e.response.headers,null,2)
          + JSON.stringify(e,null,2)*/
       );
@@ -3034,7 +3033,7 @@ var refreshAccessToken = function(tokenService, clientId, clientSecret, refreshT
       // in such a case retrying just doesn't make sense, its better to fail fast
       // which will happen when the methods calling this function try to access its results
     })
-    .catch(function(e) {
+    .catch(function (e) {
       log.error('refreshAccessToken', 'An unexpected error occurred: ', e);
     });
 };
@@ -3043,14 +3042,14 @@ var refreshAccessToken = function(tokenService, clientId, clientSecret, refreshT
  * @param expiresAt - time unit from Vend is in unix epoch format
  * @returns {*} true if the the token will be considered as expired in 2 mins from now
  */
-var hasAccessTokenExpired = function(expiresAt) {
+var hasAccessTokenExpired = function (expiresAt) {
   return (moment.unix(expiresAt).isBefore(moment().add(2, 'minutes')));
 };
 
-var replacer = function(key, value) {
-  if(value !== undefined  && value !== null) {
-    if(typeof value === 'string') {
-      if(value.trim().length>0) {
+var replacer = function (key, value) {
+  if (value !== undefined && value !== null) {
+    if (typeof value === 'string') {
+      if (value.trim().length > 0) {
         return value;
       }
       else {
@@ -3062,7 +3061,7 @@ var replacer = function(key, value) {
   return undefined; // returning this removes properties
 };
 
-module.exports = function(dependencies) {
+module.exports = function (dependencies) {
   // (1) initialize dependencies such that code can be reused both on client and server side
   _ = dependencies.underscore || require('underscore');
   moment = dependencies.moment || require('moment');
@@ -3184,18 +3183,18 @@ module.exports = function(dependencies) {
         remove: deleteConsignmentProduct
       }
     },
-    outlets:{
+    outlets: {
       fetchAll: fetchAllOutlets,
       fetch: fetchOutlets, // no need for fetchAll since hardly any Vend customers have more than 200 outlets
       fetchById: fetchOutlet
     },
-    suppliers:{
+    suppliers: {
       fetchById: fetchSupplier,
       fetch: fetchSuppliers,
       fetchAll: fetchAllSuppliers,
       create: createSupplier
     },
-    users:{
+    users: {
       fetchById: fetchUser,
       fetch: fetchUsers,
       fetchAll: fetchAllUsers,
