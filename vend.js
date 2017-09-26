@@ -402,6 +402,11 @@ var argsForInput = {
             key: 'consignment_id',
             value: undefined
           },
+          after: {
+            required: false,
+            key: 'after',
+            value: undefined
+          },
           page: {
             required: false,
             key: 'page',
@@ -1033,7 +1038,7 @@ var fetchProductsByConsignment = function (args, connectionInfo, retryCounter) {
     log.debug('retry # ' + retryCounter);
   }
 
-  var path = '/api/consignment_product';
+  var path = '/api/2.0/consignments/' + args.consignmentId.value + '/products';
   var vendUrl = 'https://' + connectionInfo.domainPrefix + '.vendhq.com' + path;
   log.debug('Requesting vend product ' + vendUrl);
   var authString = 'Bearer ' + connectionInfo.accessToken;
@@ -1047,32 +1052,12 @@ var fetchProductsByConsignment = function (args, connectionInfo, retryCounter) {
       'Accept': 'application/json'
     },
     qs: {/*jshint camelcase: false */
-      consignment_id: args.consignmentId.value,
-      page: args.page.value,
+      after: args.after.value,
       page_size: args.pageSize.value
     }
   };
 
   return sendRequest(options, args, connectionInfo, fetchProductsByConsignment, retryCounter);
-};
-
-var defaultMethod_ForProcessingPagedResults_ForConsignmentProducts = function (pagedData, previousData) {// jshint ignore:line
-  /*jshint camelcase: false */
-  log.debug('defaultMethod_ForProcessingPagedResults_ForConsignmentProducts');
-  if (previousData && previousData.length > 0) {
-    //log.verbose(JSON.stringify(pagedData.consignment_products,replacer,2));
-    if (pagedData.consignment_products && pagedData.consignment_products.length > 0) {
-      log.debug('previousData: ', previousData.length);
-      pagedData.consignment_products = pagedData.consignment_products.concat(previousData);
-      log.debug('combined: ', pagedData.consignment_products.length);
-    }
-    else {
-      pagedData.consignment_products = previousData;
-    }
-  }
-  //log.silly('finalData: ', pagedData.consignment_products);
-  log.debug('finalData.length: ', pagedData.consignment_products.length);
-  return Promise.resolve(pagedData.consignment_products);
 };
 
 var defaultMethod_ForProcessingPagedResults_ForSuppliers = function processPagedResults(pagedData, previousData) {// jshint ignore:line
@@ -1096,7 +1081,20 @@ var fetchAllProductsByConsignment = function (args, connectionInfo, processPaged
   args.pageSize = { value: 200 };
   // set a default function if none is provided
   if (!processPagedResults) {
-    processPagedResults = defaultMethod_ForProcessingPagedResults_ForConsignmentProducts;// jshint ignore:line
+    processPagedResults = function processPagedResults(pagedData, previousData) {
+      log.debug('fetchAllProductsByConsignment - default processPagedResults()');
+      if (previousData && previousData.length > 0) {
+        if (pagedData.data && pagedData.data.length > 0) {
+          log.debug('previousData: ', previousData.length);
+          pagedData.data = pagedData.data.concat(previousData);
+          log.debug('combined: ', pagedData.data.length);
+        }
+        else {
+          pagedData.data = previousData;
+        }
+      }
+      return Promise.resolve(pagedData.data);
+    };
   }
   return processPagesRecursively(args, connectionInfo, fetchProductsByConsignment, processPagedResults);
 };
