@@ -2485,14 +2485,14 @@ var updateConsignmentProduct = function (args, connectionInfo, retryCounter) {
     log.debug('retry # ' + retryCounter);
   }
 
-  var path = '/api/consignment_product/' + args.apiId.value;
+  var path = '/api/2.0/consignments/' + args.apiId.value + '/products';
   var vendUrl = 'https://' + connectionInfo.domainPrefix + '.vendhq.com' + path;
   var authString = 'Bearer ' + connectionInfo.accessToken;
   log.silly('Authorization: ' + authString); // TODO: sensitive data ... do not log?
   var body = args.body.value;
 
   var options = {
-    method: 'PUT',
+    method: 'POST',
     url: vendUrl,
     headers: {
       'Authorization': authString,
